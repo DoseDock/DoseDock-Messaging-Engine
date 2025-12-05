@@ -8,35 +8,42 @@ import (
 	"time"
 
 	"dose-dock-tts-engine/internal/notifications"
+	"dose-dock-tts-engine/internal/tts"
 )
 
 type Server struct {
 	notifier notifications.Notifier
+	tts      tts.TTSClient
 	mux      *http.ServeMux
 }
 
-func NewServer(notifier notifications.Notifier) *Server {
+func NewServer(notifier notifications.Notifier, ttsClient tts.TTSClient) *Server {
 	s := &Server{
 		notifier: notifier,
+		tts:      ttsClient,
 		mux:      http.NewServeMux(),
 	}
 	s.routes()
 	return s
 }
 
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.mux.ServeHTTP(w, r)
+}
+
 func (s *Server) routes() {
 	s.mux.HandleFunc("POST /send-sms", s.handleSendSMS)
 	s.mux.HandleFunc("POST /send-event", s.handleSendEvent)
 	s.mux.HandleFunc("POST /twilio/status", s.handleTwilioStatus)
+	s.mux.HandleFunc("POST /tts/speak", s.handleTTSSpeak)
+
 	s.mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
 }
 
-func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	s.mux.ServeHTTP(w, r)
-}
+// existing types and handlers you already had:
 
 type sendSMSRequest struct {
 	To   string `json:"to"`
@@ -130,6 +137,12 @@ func (s *Server) handleSendEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleTwilioStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Twilio sends application/x-www-form-urlencoded
 	if err := r.ParseForm(); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -146,6 +159,7 @@ func (s *Server) handleTwilioStatus(w http.ResponseWriter, r *http.Request) {
 		messageSid, messageStatus, to, from, errorCode,
 	)
 
+	// Later you can persist this to a database instead of just logging
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("ok"))
 }
