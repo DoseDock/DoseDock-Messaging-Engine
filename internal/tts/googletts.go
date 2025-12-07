@@ -9,26 +9,34 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"time"
 	"strings"
+	"time"
+
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 )
 
 // Client talks to Google Cloud Text to Speech using Chirp 3 HD voices.
 type Client struct {
-	httpClient  *http.Client
-	accessToken string
-	projectID   string
+	httpClient *http.Client
+	ts         oauth2.TokenSource
+	projectID  string
 }
 
-// NewClientFromEnv builds a Chirp 3 HD TTS client.
+// NewClientFromEnv builds a Chirp 3 HD TTS client using
+// Application Default Credentials (ADC).
 //
-// Required env vars:
-//   - GOOGLE_TTS_ACCESS_TOKEN  (OAuth2 access token, "Bearer" body only, no prefix)
-//   - GOOGLE_CLOUD_PROJECT     (project id for x-goog-user-project)
+// Prereqs:
+//   - You ran:  gcloud auth application-default login
+//   - ADC file exists
+//   - Env var: GOOGLE_CLOUD_PROJECT=<your-project-id>
 func NewClientFromEnv() (TTSClient, error) {
-	token := os.Getenv("GOOGLE_TTS_ACCESS_TOKEN")
-	if token == "" {
-		return nil, fmt.Errorf("GOOGLE_TTS_ACCESS_TOKEN not set")
+	ctx := context.Background()
+
+	// Use ADC with cloud-platform scope.
+	creds, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
+	if err != nil {
+		return nil, fmt.Errorf("find default credentials: %w", err)
 	}
 
 	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
@@ -37,9 +45,9 @@ func NewClientFromEnv() (TTSClient, error) {
 	}
 
 	return &Client{
-		httpClient:  &http.Client{Timeout: 20 * time.Second},
-		accessToken: token,
-		projectID:   projectID,
+		httpClient: &http.Client{Timeout: 20 * time.Second},
+		ts:         creds.TokenSource,
+		projectID:  projectID,
 	}, nil
 }
 
@@ -54,8 +62,7 @@ func (c *Client) Synthesize(ctx context.Context, req SynthesizeRequest) (*Synthe
 		speakingRate = 1.0
 	}
 
-	// Decide which Chirp 3 HD voice to use.
-	// UI sends short names like "Charon", "Kore", etc.
+	// Decide which Chirp 3 HD voice to use based on caregiver choice.
 	voiceShort := strings.TrimSpace(req.Voice)
 	if voiceShort == "" {
 		voiceShort = "Charon"
@@ -63,8 +70,6 @@ func (c *Client) Synthesize(ctx context.Context, req SynthesizeRequest) (*Synthe
 
 	voiceName := voiceShort
 	if !strings.HasPrefix(voiceShort, "en-US-") {
-		// Map short name -> full Chirp 3 HD name.
-		// You can extend this if you ever use non en-US voices.
 		voiceName = "en-US-Chirp3-HD-" + voiceShort
 	}
 
@@ -87,6 +92,12 @@ func (c *Client) Synthesize(ctx context.Context, req SynthesizeRequest) (*Synthe
 		return nil, fmt.Errorf("encode tts request: %w", err)
 	}
 
+	// Get a fresh access token from ADC.
+	tok, err := c.ts.Token()
+	if err != nil {
+		return nil, fmt.Errorf("get access token from ADC: %w", err)
+	}
+
 	httpReq, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
@@ -97,7 +108,7 @@ func (c *Client) Synthesize(ctx context.Context, req SynthesizeRequest) (*Synthe
 		return nil, fmt.Errorf("build tts request: %w", err)
 	}
 
-	httpReq.Header.Set("Authorization", "Bearer "+c.accessToken)
+	httpReq.Header.Set("Authorization", "Bearer "+tok.AccessToken)
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("x-goog-user-project", c.projectID)
 

@@ -1,0 +1,5 @@
+# tts outputs
+tts_output/
+
+# env files
+.env.local
