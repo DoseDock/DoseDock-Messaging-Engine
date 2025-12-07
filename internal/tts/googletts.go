@@ -12,13 +12,19 @@ import (
 	"time"
 )
 
+// Client talks to Google Cloud Text to Speech using Chirp 3 HD voices.
 type Client struct {
 	httpClient  *http.Client
 	accessToken string
 	projectID   string
 }
 
-func NewClientFromEnv() (*Client, error) {
+// NewClientFromEnv builds a Chirp 3 HD TTS client.
+//
+// Required env vars:
+//   - GOOGLE_TTS_ACCESS_TOKEN  (OAuth2 access token, "Bearer" body only, no prefix)
+//   - GOOGLE_CLOUD_PROJECT     (project id for x-goog-user-project)
+func NewClientFromEnv() (TTSClient, error) {
 	token := os.Getenv("GOOGLE_TTS_ACCESS_TOKEN")
 	if token == "" {
 		return nil, fmt.Errorf("GOOGLE_TTS_ACCESS_TOKEN not set")
@@ -36,20 +42,32 @@ func NewClientFromEnv() (*Client, error) {
 	}, nil
 }
 
-// Synthesize implements TTSClient and returns raw MP3 bytes.
+// Synthesize calls Cloud Text to Speech with Chirp 3 HD, Charon voice, MP3 output.
 func (c *Client) Synthesize(ctx context.Context, req SynthesizeRequest) (*SynthesizeResponse, error) {
+	text := req.Text
+	if text == "" {
+		return nil, fmt.Errorf("empty Text in SynthesizeRequest")
+	}
+
+	speakingRate := req.SpeakingRate
+	if speakingRate <= 0 {
+		speakingRate = 1.0
+	}
+
+	// Chirp 3 HD Charon voice in en-US, MP3 output.
+	// Shape matches Cloud TTS v1 SynthesizeSpeechRequest.
 	body := map[string]any{
-		"input": map[string]string{
-			"text": req.Text,
+		"input": map[string]any{
+			"text": text,
 		},
-		"voice": map[string]string{
+		"voice": map[string]any{
 			"languageCode": "en-US",
-			"name":         "en-US-Standard-C",
+			// From docs: "en-US-Chirp3-HD-Charon" is the Charon male voice on Chirp 3 HD.
+			"name": "en-US-Chirp3-HD-Charon",
 		},
 		"audioConfig": map[string]any{
 			"audioEncoding": "MP3",
-			// you can add speaking rate here if you want:
-			// "speakingRate": req.SpeakingRate,
+			"speakingRate":  speakingRate,
 		},
 	}
 
