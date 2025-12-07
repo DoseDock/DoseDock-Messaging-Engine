@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 	"time"
+	"sync"
+	"fmt"
 
 	"dose-dock-tts-engine/internal/notifications"
 	"dose-dock-tts-engine/internal/tts"
@@ -119,16 +121,11 @@ func (s *Server) handleSendEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req := notifications.Request{
-		To:      ev.To,
-		Body:    text,
-		Channel: notifications.ChannelSMS,
-	}
-
-	if err := s.notifier.Send(ctx, req); err != nil {
-		log.Printf("Send event SMS error: %v", err)
+	// One call that does both SMS and TTS
+	if err := s.sendSMSAndSpeak(ctx, ev, text); err != nil {
+		log.Printf("sendSMSAndSpeak error: %v", err)
 		w.WriteHeader(http.StatusBadGateway)
-		_, _ = w.Write([]byte("failed to send"))
+		_, _ = w.Write([]byte("failed to send or speak"))
 		return
 	}
 
@@ -162,4 +159,73 @@ func (s *Server) handleTwilioStatus(w http.ResponseWriter, r *http.Request) {
 	// Later you can persist this to a database instead of just logging
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("ok"))
+}
+func (s *Server) sendSMSAndSpeak(ctx context.Context, ev notifications.EventPayload, text string) error {
+	smsReq := notifications.Request{
+		To:      ev.To,
+		Body:    text,
+		Channel: notifications.ChannelSMS,
+	}
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, 2)
+
+	// SMS
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := s.notifier.Send(ctx, smsReq); err != nil {
+			errCh <- fmt.Errorf("sms send error: %w", err)
+		}
+	}()
+
+	// TTS (only if configured)
+	if s.tts != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			resp, err := s.tts.Synthesize(ctx, tts.SynthesizeRequest{
+				Text:         text,
+				Prompt:       "Speak clearly and calmly for an older adult.",
+				SpeakingRate: 1.0,
+			})
+			if err != nil {
+				errCh <- fmt.Errorf("tts synth error: %w", err)
+				return
+			}
+
+			// Save and auto play, same as /tts/speak
+			path, err := saveMP3(resp.Audio)
+			if err != nil {
+				errCh <- fmt.Errorf("save MP3 error: %w", err)
+				return
+			}
+
+			if err := openWithDefaultPlayer(path); err != nil {
+				// not fatal but log it
+				log.Printf("auto play error: %v", err)
+			}
+		}()
+	} else {
+		log.Printf("sendSMSAndSpeak: tts client is nil, skipping voice playback")
+	}
+
+	// Wait for both goroutines, but respect context
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		close(errCh)
+		if len(errCh) == 0 {
+			return nil
+		}
+		return <-errCh
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

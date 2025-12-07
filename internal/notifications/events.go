@@ -24,7 +24,7 @@ func RenderBody(ev EventPayload) (string, error) {
 	case EventDoseDue:
 		// expects: patientName, time, meds
 		return fmt.Sprintf(
-			"Hi %s, this is your DoseDock reminder to take your %s medication at %s.",
+			"Hi %s, this is your DoseDock reminder to take your %s at %s.",
 			ev.Payload["patientName"],
 			ev.Payload["meds"],
 			ev.Payload["time"],
