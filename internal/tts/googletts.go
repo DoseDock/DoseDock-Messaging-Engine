@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"time"
+	"strings"
 )
 
 // Client talks to Google Cloud Text to Speech using Chirp 3 HD voices.
@@ -42,7 +43,6 @@ func NewClientFromEnv() (TTSClient, error) {
 	}, nil
 }
 
-// Synthesize calls Cloud Text to Speech with Chirp 3 HD, Charon voice, MP3 output.
 func (c *Client) Synthesize(ctx context.Context, req SynthesizeRequest) (*SynthesizeResponse, error) {
 	text := req.Text
 	if text == "" {
@@ -54,16 +54,27 @@ func (c *Client) Synthesize(ctx context.Context, req SynthesizeRequest) (*Synthe
 		speakingRate = 1.0
 	}
 
-	// Chirp 3 HD Charon voice in en-US, MP3 output.
-	// Shape matches Cloud TTS v1 SynthesizeSpeechRequest.
+	// Decide which Chirp 3 HD voice to use.
+	// UI sends short names like "Charon", "Kore", etc.
+	voiceShort := strings.TrimSpace(req.Voice)
+	if voiceShort == "" {
+		voiceShort = "Charon"
+	}
+
+	voiceName := voiceShort
+	if !strings.HasPrefix(voiceShort, "en-US-") {
+		// Map short name -> full Chirp 3 HD name.
+		// You can extend this if you ever use non en-US voices.
+		voiceName = "en-US-Chirp3-HD-" + voiceShort
+	}
+
 	body := map[string]any{
 		"input": map[string]any{
 			"text": text,
 		},
 		"voice": map[string]any{
 			"languageCode": "en-US",
-			// From docs: "en-US-Chirp3-HD-Charon" is the Charon male voice on Chirp 3 HD.
-			"name": "en-US-Chirp3-HD-Charon",
+			"name":         voiceName,
 		},
 		"audioConfig": map[string]any{
 			"audioEncoding": "MP3",

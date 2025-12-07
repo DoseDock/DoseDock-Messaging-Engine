@@ -20,6 +20,8 @@ type ttsRequest struct {
 	Text         string  `json:"text"`
 	Prompt       string  `json:"prompt"`
 	SpeakingRate float32 `json:"speakingRate"`
+	Voice        string  `json:"voice"`
+	Emotion      string  `json:"emotion"`
 }
 
 type ttsResponse struct {
@@ -32,7 +34,6 @@ func (s *Server) handleTTSSpeak(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-
 	if s.tts == nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_, _ = w.Write([]byte("tts not configured"))
@@ -46,13 +47,26 @@ func (s *Server) handleTTSSpeak(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Build a style prompt that includes emotion
+	stylePrompt := body.Prompt
+	switch body.Emotion {
+	case "calm":
+		stylePrompt = "Speak in a calm, reassuring tone. " + stylePrompt
+	case "friendly":
+		stylePrompt = "Speak in a warm, friendly tone. " + stylePrompt
+	case "urgent":
+		stylePrompt = "Speak in a clear, urgent tone without sounding scary. " + stylePrompt
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
 
 	resp, err := s.tts.Synthesize(ctx, tts.SynthesizeRequest{
 		Text:         body.Text,
-		Prompt:       body.Prompt,
+		Prompt:       stylePrompt,
 		SpeakingRate: body.SpeakingRate,
+		Voice:        body.Voice,
+		Emotion:      tts.Emotion(body.Emotion),
 	})
 	if err != nil {
 		log.Printf("TTS synth error: %v", err)
@@ -61,20 +75,7 @@ func (s *Server) handleTTSSpeak(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filePath, err := saveMP3(resp.Audio)
-	if err != nil {
-		log.Printf("save MP3 error: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("failed to save audio"))
-		return
-	}
-
-	if err := openWithDefaultPlayer(filePath); err != nil {
-		log.Printf("auto play error: %v", err)
-	}
-
 	out := ttsResponse{
-		File:        filePath,
 		AudioBase64: base64.StdEncoding.EncodeToString(resp.Audio),
 	}
 

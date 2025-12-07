@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>DoseDock Voice Lab</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 16px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+
+        h1 {
+            margin-top: 0;
+        }
+
+        fieldset {
+            margin-bottom: 16px;
+            padding: 12px;
+        }
+
+        label {
+            display: block;
+            margin: 6px 0 2px;
+            font-size: 0.9rem;
+        }
+
+        input,
+        select,
+        textarea,
+        button {
+            width: 100%;
+            padding: 6px;
+            font-size: 0.95rem;
+            box-sizing: border-box;
+        }
+
+        .row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .row>div {
+            flex: 1;
+        }
+
+        button {
+            margin-top: 8px;
+            cursor: pointer;
+        }
+
+        #status {
+            margin-top: 12px;
+            font-size: 0.9rem;
+            color: #444;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>DoseDock Reminder Voice Setup</h1>
+    <p>
+        Configure how DoseDock speaks and texts reminders.
+        You can test a voice, adjust style, then send a sample reminder.
+    </p>
+
+    <!-- Reminder configuration -->
+    <fieldset>
+        <legend>Reminder details</legend>
+        <label for="eventType">Reminder type</label>
+        <select id="eventType">
+            <option value="DOSE_DUE">Dose due</option>
+            <option value="REFILL_REMINDER">Refill reminder</option>
+            <option value="TEST_REMINDER">Test notification</option>
+        </select>
+
+        <div class="row">
+            <div>
+                <label for="patientName">Patient name</label>
+                <input id="patientName" type="text" placeholder="Jinal">
+            </div>
+            <div>
+                <label for="time">Time</label>
+                <input id="time" type="text" placeholder="8:00 pm">
+            </div>
+        </div>
+
+        <label for="meds">Medication description</label>
+        <input id="meds" type="text" placeholder="evening medications">
+
+        <label for="phone">Phone number (E.164)</label>
+        <input id="phone" type="text" placeholder="+14165551234">
+    </fieldset>
+
+    <!-- Voice and style -->
+    <fieldset>
+        <legend>Voice and style</legend>
+
+        <label for="voice">Voice</label>
+        <select id="voice">
+            <option value="Charon">Charon (male)</option>
+            <option value="Kore">Kore (female)</option>
+            <option value="Aoede">Aoede (female)</option>
+            <option value="Gacrux">Gacrux (female)</option>
+            <option value="Orus">Orus (male)</option>
+        </select>
+
+        <label for="emotion">Emotion</label>
+        <select id="emotion">
+            <option value="neutral">Neutral</option>
+            <option value="calm">Calm</option>
+            <option value="friendly">Friendly</option>
+            <option value="urgent">Urgent</option>
+        </select>
+
+        <label for="promptNotes">Style notes for the voice</label>
+        <textarea id="promptNotes" rows="3"
+            placeholder="Example: Speak clearly for an older adult and keep the pace a little slower."></textarea>
+
+        <label for="speakingRate">Speaking rate (0.7 slow, 1.0 normal, 1.3 faster)</label>
+        <input id="speakingRate" type="number" step="0.1" value="1.0">
+    </fieldset>
+
+    <fieldset>
+        <legend>Actions</legend>
+        <button id="testVoiceBtn">Play test voice (Hello world)</button>
+        <button id="sendReminderBtn">Send sample reminder (SMS + voice)</button>
+    </fieldset>
+
+    <div id="status"></div>
+
+    <script>
+        const statusEl = document.getElementById("status");
+
+        function log(msg) {
+            statusEl.textContent = msg;
+        }
+
+        function buildPrompt(emotion, notes) {
+            let base = "";
+            switch (emotion) {
+                case "calm":
+                    base = "Speak in a calm, reassuring tone. ";
+                    break;
+                case "friendly":
+                    base = "Speak in a warm, friendly tone. ";
+                    break;
+                case "urgent":
+                    base = "Speak in a clear, urgent tone without sounding scary. ";
+                    break;
+                default:
+                    base = "";
+            }
+            return base + (notes || "");
+        }
+
+        // 1. Test voice with Hello world
+        document.getElementById("testVoiceBtn").addEventListener("click", async () => {
+            const voice = document.getElementById("voice").value;
+            const emotion = document.getElementById("emotion").value;
+            const notes = document.getElementById("promptNotes").value;
+            const speakingRate = parseFloat(document.getElementById("speakingRate").value) || 1.0;
+
+            const prompt = buildPrompt(emotion, notes);
+
+            const body = {
+                text: "Hello world, this is your DoseDock reminder voice.",
+                prompt: prompt,
+                speakingRate: speakingRate,
+                voice: voice,
+                emotion: emotion
+            };
+
+            log("Calling /tts/speak with " + JSON.stringify(body, null, 2));
+
+            try {
+                const resp = await fetch("http://localhost:8090/tts/speak", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body)
+                });
+
+                if (!resp.ok) {
+                    const text = await resp.text();
+                    log("TTS error: " + resp.status + " " + text);
+                    return;
+                }
+
+                const data = await resp.json();
+                if (!data.audioBase64) {
+                    log("No audioBase64 in response");
+                    return;
+                }
+
+                const audio = new Audio("data:audio/mp3;base64," + data.audioBase64);
+                audio.play();
+                log("Playing test voice for " + voice + " with emotion " + emotion);
+            } catch (err) {
+                log("Fetch error: " + err);
+            }
+        });
+
+        // 2. Send reminder (SMS + pillbox voice)
+        document.getElementById("sendReminderBtn").addEventListener("click", async () => {
+            const eventType = document.getElementById("eventType").value;
+            const patientName = document.getElementById("patientName").value || "Jinal";
+            const time = document.getElementById("time").value || "8:00 pm";
+            const meds = document.getElementById("meds").value || "your medications";
+            const phone = document.getElementById("phone").value;
+
+            if (!phone) {
+                log("Please enter a phone number first.");
+                return;
+            }
+
+            const body = {
+                event: eventType,
+                to: phone,
+                payload: {
+                    patientName: patientName,
+                    time: time,
+                    meds: meds
+                },
+                voice: document.getElementById("voice").value,
+                emotion: document.getElementById("emotion").value,
+                prompt: buildPrompt(
+                    document.getElementById("emotion").value,
+                    document.getElementById("promptNotes").value),
+                speakingRate: parseFloat(document.getElementById("speakingRate").value) || 1.0
+            };
+
+            log("Calling /send-event with " + JSON.stringify(body, null, 2));
+
+            try {
+                const resp = await fetch("http://localhost:8090/send-event", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body)
+                });
+
+                const text = await resp.text();
+                if (!resp.ok) {
+                    log("send-event error: " + resp.status + " " + text);
+                    return;
+                }
+
+                log("Reminder triggered. Server said: " + text);
+            } catch (err) {
+                log("Fetch error: " + err);
+            }
+        });
+    </script>
+</body>
+
+</html>

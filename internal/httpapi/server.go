@@ -39,6 +39,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /twilio/status", s.handleTwilioStatus)
 	s.mux.HandleFunc("POST /tts/speak", s.handleTTSSpeak)
 
+	// Serve the UI from /ui/
+	fileServer := http.FileServer(http.Dir("web"))
+	s.mux.Handle("/ui/", http.StripPrefix("/ui/", fileServer))
+
 	s.mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -53,9 +57,13 @@ type sendSMSRequest struct {
 }
 
 type sendEventRequest struct {
-	Event   string            `json:"event"`
-	To      string            `json:"to"`
-	Payload map[string]string `json:"payload"`
+	Event        string            `json:"event"`
+	To           string            `json:"to"`
+	Payload      map[string]string `json:"payload"`
+	Voice        string            `json:"voice,omitempty"`
+	Emotion      string            `json:"emotion,omitempty"`
+	SpeakingRate float32           `json:"speakingRate,omitempty"`
+	Prompt       string            `json:"prompt,omitempty"`
 }
 
 func (s *Server) handleSendSMS(w http.ResponseWriter, r *http.Request) {
@@ -108,11 +116,18 @@ func (s *Server) handleSendEvent(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	ev := notifications.EventPayload{
-		Event:   notifications.EventType(body.Event),
-		To:      body.To,
-		Payload: body.Payload,
+		Event:        notifications.EventType(body.Event),
+		To:           body.To,
+		Payload:      body.Payload,
+		Voice:        body.Voice,
+		Emotion:      body.Emotion,
+		SpeakingRate: body.SpeakingRate,
+		Prompt:       body.Prompt,
 	}
 
+	log.Printf("handleSendEvent voice=%q emotion=%q rate=%v prompt=%q",
+    body.Voice, body.Emotion, body.SpeakingRate, body.Prompt)
+	
 	text, err := notifications.RenderBody(ev)
 	if err != nil {
 		log.Printf("RenderBody error: %v", err)
@@ -121,7 +136,21 @@ func (s *Server) handleSendEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// One call that does both SMS and TTS
+	// SMS still uses text
+	req := notifications.Request{
+		To:      ev.To,
+		Body:    text,
+		Channel: notifications.ChannelSMS,
+	}
+
+	if err := s.notifier.Send(ctx, req); err != nil {
+		log.Printf("Send event SMS error: %v", err)
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte("failed to send"))
+		return
+	}
+
+	// And now TTS uses the caregiver chosen voice
 	if err := s.sendSMSAndSpeak(ctx, ev, text); err != nil {
 		log.Printf("sendSMSAndSpeak error: %v", err)
 		w.WriteHeader(http.StatusBadGateway)
@@ -160,6 +189,7 @@ func (s *Server) handleTwilioStatus(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("ok"))
 }
+
 func (s *Server) sendSMSAndSpeak(ctx context.Context, ev notifications.EventPayload, text string) error {
 	smsReq := notifications.Request{
 		To:      ev.To,
@@ -179,16 +209,36 @@ func (s *Server) sendSMSAndSpeak(ctx context.Context, ev notifications.EventPayl
 		}
 	}()
 
-	// TTS (only if configured)
+	// TTS with caregiver prefs
 	if s.tts != nil {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
+			voice := ev.Voice
+			if voice == "" {
+				voice = "Charon"
+			}
+
+			rate := ev.SpeakingRate
+			if rate <= 0 {
+				rate = 1.0
+			}
+
+			prompt := ev.Prompt
+			if prompt == "" {
+				prompt = "Speak clearly and calmly for an older adult."
+			}
+			if ev.Emotion != "" {
+				prompt = fmt.Sprintf("%s Use a %s tone.", prompt, ev.Emotion)
+			}
+
 			resp, err := s.tts.Synthesize(ctx, tts.SynthesizeRequest{
 				Text:         text,
-				Prompt:       "Speak clearly and calmly for an older adult.",
-				SpeakingRate: 1.0,
+				Prompt:       prompt,
+				SpeakingRate: rate,
+				Voice:        voice,
+				Emotion:      tts.Emotion(ev.Emotion),
 			})
 			if err != nil {
 				errCh <- fmt.Errorf("tts synth error: %w", err)
