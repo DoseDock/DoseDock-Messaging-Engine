@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>DoseDock Voice Lab</title>
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --surface: #18181d;
+      --surface-alt: #1f1f25;
+      --card: #23232a;
+      --text-primary: #f5f5f7;
+      --text-secondary: #a1a1aa;
+      --accent: #8b5cf6;
+      --accent-soft: #a78bfa;
+      --danger: #f87171;
+      --border: #2d2d34;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      background: radial-gradient(circle at top, #18181d 0%, #0f0f12 45%, #050509 100%);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      color: var(--text-primary);
+    }
+
+    .app-shell {
+      max-width: 1040px;
+      margin: 0 auto;
+      background-color: rgba(15, 15, 18, 0.9);
+      border-radius: 24px;
+      border: 1px solid var(--border);
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.65);
+      display: flex;
+      flex-direction: column;
+      padding: 20px 24px 24px;
+    }
+
+    header {
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    header p {
+      margin: 4px 0 0;
+      font-size: 13px;
+      color: var(--text-secondary);
+      max-width: 420px;
+    }
+
+    .pill-tag {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 500;
+      background: rgba(139, 92, 246, 0.12);
+      color: var(--accent-soft);
+      border: 1px solid rgba(139, 92, 246, 0.6);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .layout {
+      display: flex;
+      gap: 20px;
+      margin-top: 18px;
+    }
+
+    .left-column {
+      flex: 2;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .right-column {
+      flex: 1.4;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-width: 260px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 14px 16px 16px;
+      border: 1px solid var(--border);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .card-subtitle {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    fieldset {
+      border: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    label {
+      display: block;
+      margin: 6px 0 4px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-primary);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.4);
+      background: var(--surface-alt);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 70px;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .row>div {
+      flex: 1;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 9px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 120ms ease, transform 60ms ease, box-shadow 120ms ease, opacity 100ms ease;
+      white-space: nowrap;
+    }
+
+    button:active {
+      transform: translateY(1px);
+      box-shadow: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #8b5cf6, #a855f7);
+      color: white;
+      box-shadow: 0 10px 25px rgba(139, 92, 246, 0.5);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #a78bfa, #c084fc);
+    }
+
+    .btn-secondary {
+      background: var(--surface-alt);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: #2b2b33;
+    }
+
+    .actions-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    #status {
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+    }
+
+    /* Preview card */
+
+    .preview-text-main {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+
+    .preview-pill {
+      font-size: 11px;
+      padding: 6px 8px;
+      border-radius: 10px;
+      background: rgba(35, 35, 42, 0.9);
+      border: 1px dashed var(--border);
+      color: var(--text-secondary);
+    }
+
+    .preview-label {
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 6px;
+      gap: 10px;
+    }
+
+    .toggle-row span {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .toggle-advanced {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .toggle-advanced input {
+      width: auto;
+      padding: 0;
+      border-radius: 4px;
+    }
+
+    .advanced-preview {
+      margin-top: 8px;
+      padding: 8px;
+      border-radius: 10px;
+      background: rgba(15, 15, 20, 0.9);
+      border: 1px solid var(--border);
+      font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 11px;
+      color: var(--text-secondary);
+      max-height: 160px;
+      overflow: auto;
+    }
+
+    /* History panel */
+
+    .history-list {
+      margin-top: 6px;
+      max-height: 500px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .history-empty {
+      font-size: 12px;
+      color: var(--text-secondary);
+      opacity: 0.85;
+      padding: 4px 2px;
+    }
+
+    .history-item {
+      padding: 8px 8px 8px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(24, 24, 29, 0.95);
+      margin-bottom: 6px;
+    }
+
+    .history-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 2px;
+      gap: 4px;
+    }
+
+    .history-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .history-timestamp {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .history-meta {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .history-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 4px;
+    }
+
+    .tag {
+      font-size: 10px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(35, 35, 42, 0.9);
+      color: var(--text-secondary);
+    }
+
+    .tag-success {
+      border-color: rgba(52, 211, 153, 0.8);
+      color: #6ee7b7;
+      background: rgba(6, 78, 59, 0.3);
+    }
+
+    .tag-error {
+      border-color: rgba(248, 113, 113, 0.9);
+      color: #fecaca;
+      background: rgba(127, 29, 29, 0.4);
+    }
+
+    /* Responsive */
+
+    @media (max-width: 900px) {
+      .layout {
+        flex-direction: column;
+      }
+
+      .right-column {
+        min-width: 0;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app-shell">
+    <header>
+      <div>
+        <h1>DoseDock Reminder Voice Setup</h1>
+        <p>
+          Configure how DoseDock speaks and texts reminders. Test voices, preview exactly what the
+          patient hears, then send a sample reminder.
+        </p>
+      </div>
+      <div class="pill-tag">
+        Pillbox Voice + SMS
+      </div>
+    </header>
+
+    <div class="layout">
+      <!-- LEFT: form + preview -->
+      <div class="left-column">
+        <!-- Preview card -->
+        <section class="card" id="previewCard">
+          <div class="card-header">
+            <div>
+              <div class="card-title">What the patient will hear</div>
+              <div class="card-subtitle">Live preview of spoken reminder and SMS text</div>
+            </div>
+          </div>
+
+          <div>
+            <div class="preview-label">Spoken reminder</div>
+            <div class="preview-text-main" id="previewSpoken">
+              Hi Jinal, this is your DoseDock reminder to take your evening medications at 8:00 pm.
+            </div>
+
+            <div class="preview-label" style="margin-top: 6px;">SMS text</div>
+            <div class="preview-pill" id="previewSMS">
+              Hi Jinal, this is your DoseDock reminder to take your evening medications at 8:00 pm.
+            </div>
+
+            <div class="toggle-row">
+              <span id="previewMeta">
+                Voice: Charon · Emotion: neutral · Rate: 1.0
+              </span>
+              <label class="toggle-advanced">
+                <input type="checkbox" id="showAdvanced">
+                <span>Show advanced JSON</span>
+              </label>
+            </div>
+
+            <div class="advanced-preview" id="advancedPreview" style="display: none;"></div>
+          </div>
+        </section>
+
+        <!-- Reminder configuration -->
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Reminder details</div>
+              <div class="card-subtitle">Who this reminder is for and what it will say</div>
+            </div>
+          </div>
+
+          <fieldset>
+            <label for="eventType">Reminder type</label>
+            <select id="eventType">
+              <option value="DOSE_DUE">Dose due</option>
+              <option value="REFILL_REMINDER">Refill reminder</option>
+              <option value="TEST_REMINDER">Test notification</option>
+            </select>
+
+            <div class="row">
+              <div>
+                <label for="patientName">Patient name</label>
+                <input id="patientName" type="text" placeholder="Jinal" />
+              </div>
+              <div>
+                <label for="time">Time</label>
+                <input id="time" type="text" placeholder="8:00 pm" />
+              </div>
+            </div>
+
+            <label for="meds">Medication description</label>
+            <input id="meds" type="text" placeholder="evening medications" />
+
+            <label for="phone">Phone number (E.164)</label>
+            <input id="phone" type="text" placeholder="+14165551234" />
+          </fieldset>
+        </section>
+
+        <!-- Voice and style -->
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Voice and style</div>
+              <div class="card-subtitle">Choose the voice, emotion, pace and style notes</div>
+            </div>
+          </div>
+
+          <fieldset>
+            <label for="voice">Voice</label>
+            <select id="voice">
+              <option value="Charon">Charon (male)</option>
+              <option value="Kore">Kore (female)</option>
+              <option value="Aoede">Aoede (female)</option>
+              <option value="Gacrux">Gacrux (female)</option>
+              <option value="Orus">Orus (male)</option>
+            </select>
+
+            <label for="emotion">Emotion</label>
+            <select id="emotion">
+              <option value="neutral">Neutral</option>
+              <option value="calm">Calm</option>
+              <option value="friendly">Friendly</option>
+              <option value="urgent">Urgent</option>
+            </select>
+
+            <label for="promptNotes">Style notes for the voice</label>
+            <textarea id="promptNotes" rows="3"
+              placeholder="Example: Speak clearly for an older adult and keep the pace a little slower."></textarea>
+
+            <label for="speakingRate">Speaking rate (0.7 slow, 1.0 normal, 1.3 faster)</label>
+            <input id="speakingRate" type="number" step="0.1" value="1.0" />
+          </fieldset>
+
+          <div class="actions-row">
+            <button id="testVoiceBtn" class="btn-secondary">Play test voice (Hello world)</button>
+            <button id="sendReminderBtn" class="btn-primary">Send sample reminder (SMS + pillbox
+              voice)</button>
+          </div>
+
+          <div id="status"></div>
+        </section>
+      </div>
+
+      <!-- RIGHT: history panel -->
+      <aside class="right-column">
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">History</div>
+              <div class="card-subtitle">Recent test voices and reminders</div>
+            </div>
+          </div>
+
+          <div class="history-list" id="historyList">
+            <div class="history-empty">No reminders sent yet. Test a voice or send a sample reminder to
+              see history here.</div>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById("status");
+    const historyListEl = document.getElementById("historyList");
+    const advancedPreviewEl = document.getElementById("advancedPreview");
+    const showAdvancedCheckbox = document.getElementById("showAdvanced");
+
+    const history = [];
+
+    function log(msg) {
+      statusEl.textContent = msg;
+    }
+
+    function buildPrompt(emotion, notes) {
+      let base = "";
+      switch (emotion) {
+        case "calm":
+          base = "Speak in a calm, reassuring tone. ";
+          break;
+        case "friendly":
+          base = "Speak in a warm, friendly tone. ";
+          break;
+        case "urgent":
+          base = "Speak in a clear, urgent tone without sounding scary. ";
+          break;
+        default:
+          base = "";
+      }
+      return base + (notes || "");
+    }
+
+    // Build the reminder text exactly like the backend RenderBody
+    function buildReminderText(eventType, payload) {
+      const name = payload.patientName || "Jinal";
+      const time = payload.time || "8:00 pm";
+      const meds = payload.meds || "medications";
+
+      if (eventType === "DOSE_DUE") {
+        return `Hi ${name}, this is your DoseDock reminder to take your ${meds} at ${time}.`;
+      }
+      if (eventType === "REFILL_REMINDER") {
+        return `Hi ${name}, your DoseDock dispenser is running low on ${meds}. Please refill soon.`;
+      }
+      if (eventType === "TEST_REMINDER") {
+        return "DoseDock test reminder, notifications are working.";
+      }
+      return "Unknown reminder type.";
+    }
+
+    function updatePreview() {
+      const eventType = document.getElementById("eventType").value;
+      const patientName = document.getElementById("patientName").value;
+      const timeVal = document.getElementById("time").value;
+      const meds = document.getElementById("meds").value;
+      const voice = document.getElementById("voice").value;
+      const emotion = document.getElementById("emotion").value;
+      const notes = document.getElementById("promptNotes").value;
+      const speakingRate = parseFloat(document.getElementById("speakingRate").value) || 1.0;
+
+      const payload = { patientName, time: timeVal, meds };
+      const text = buildReminderText(eventType, payload);
+      const prompt = buildPrompt(emotion, notes);
+
+      document.getElementById("previewSpoken").textContent = text;
+      document.getElementById("previewSMS").textContent = text;
+      document.getElementById("previewMeta").textContent =
+        `Voice: ${voice} · Emotion: ${emotion} · Rate: ${speakingRate.toFixed(1)}`;
+
+      // Advanced JSON preview (matches /send-event body shape)
+      const body = {
+        event: eventType,
+        to: document.getElementById("phone").value || "+14165551234",
+        payload,
+        voice,
+        emotion,
+        prompt,
+        speakingRate
+      };
+      advancedPreviewEl.textContent = JSON.stringify(body, null, 2);
+    }
+
+    showAdvancedCheckbox.addEventListener("change", () => {
+      advancedPreviewEl.style.display = showAdvancedCheckbox.checked ? "block" : "none";
+    });
+
+    // Recompute preview whenever relevant inputs change
+    ["eventType", "patientName", "time", "meds", "phone", "voice", "emotion", "promptNotes", "speakingRate"]
+      .forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const evt = el.tagName === "SELECT" ? "change" : "input";
+        el.addEventListener(evt, updatePreview);
+      });
+
+    function addHistoryEntry(entry) {
+      history.unshift(entry); // latest on top
+
+      // keep it short
+      if (history.length > 20) {
+        history.pop();
+      }
+
+      renderHistory();
+    }
+
+    function renderHistory() {
+      historyListEl.innerHTML = "";
+
+      if (history.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "history-empty";
+        empty.textContent = "No reminders sent yet. Test a voice or send a sample reminder to see history here.";
+        historyListEl.appendChild(empty);
+        return;
+      }
+
+      history.forEach(item => {
+        const div = document.createElement("div");
+        div.className = "history-item";
+
+        const headerRow = document.createElement("div");
+        headerRow.className = "history-header-row";
+
+        const title = document.createElement("div");
+        title.className = "history-title";
+        title.textContent = item.title;
+
+        const ts = document.createElement("div");
+        ts.className = "history-timestamp";
+        ts.textContent = item.timestamp;
+
+        headerRow.appendChild(title);
+        headerRow.appendChild(ts);
+
+        const meta = document.createElement("div");
+        meta.className = "history-meta";
+        meta.textContent = item.meta;
+
+        const tagsRow = document.createElement("div");
+        tagsRow.className = "history-tags";
+
+        if (item.smsStatus) {
+          const smsTag = document.createElement("span");
+          smsTag.className = "tag " + (item.smsStatus === "ok" ? "tag-success" : "tag-error");
+          smsTag.textContent = "SMS: " + (item.smsStatus === "ok" ? "sent" : item.smsStatus);
+          tagsRow.appendChild(smsTag);
+        }
+
+        if (item.ttsStatus) {
+          const ttsTag = document.createElement("span");
+          ttsTag.className = "tag " + (item.ttsStatus === "ok" || item.ttsStatus === "triggered" ? "tag-success" : "tag-error");
+          ttsTag.textContent = "Voice: " + item.ttsStatus;
+          tagsRow.appendChild(ttsTag);
+        }
+
+        const voiceTag = document.createElement("span");
+        voiceTag.className = "tag";
+        voiceTag.textContent = `Voice: ${item.voice} · ${item.emotion} · ${item.rate}`;
+        tagsRow.appendChild(voiceTag);
+
+        div.appendChild(headerRow);
+        div.appendChild(meta);
+        div.appendChild(tagsRow);
+
+        historyListEl.appendChild(div);
+      });
+    }
+
+    // 1. Test voice with Hello world
+    document.getElementById("testVoiceBtn").addEventListener("click", async () => {
+      const voice = document.getElementById("voice").value;
+      const emotion = document.getElementById("emotion").value;
+      const notes = document.getElementById("promptNotes").value;
+      const speakingRate = parseFloat(document.getElementById("speakingRate").value) || 1.0;
+
+      const prompt = buildPrompt(emotion, notes);
+
+      const body = {
+        text: "Hello world, this is your DoseDock reminder voice.",
+        prompt: prompt,
+        speakingRate: speakingRate,
+        voice: voice,
+        emotion: emotion
+      };
+
+      log("Calling /tts/speak with " + JSON.stringify(body, null, 2));
+
+      const startedAt = new Date();
+
+      try {
+        const resp = await fetch("http://localhost:8090/tts/speak", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+
+        if (!resp.ok) {
+          const text = await resp.text();
+          const errMsg = "TTS error: " + resp.status + " " + text;
+          log(errMsg);
+
+          addHistoryEntry({
+            title: "Test voice",
+            timestamp: startedAt.toLocaleTimeString(),
+            meta: `Hello world test · Voice ${voice}`,
+            voice,
+            emotion,
+            rate: speakingRate.toFixed(1),
+            smsStatus: null,
+            ttsStatus: errMsg
+          });
+
+          return;
+        }
+
+        const data = await resp.json();
+        if (!data.audioBase64) {
+          const errMsg = "No audioBase64 in response";
+          log(errMsg);
+
+          addHistoryEntry({
+            title: "Test voice",
+            timestamp: startedAt.toLocaleTimeString(),
+            meta: `Hello world test · Voice ${voice}`,
+            voice,
+            emotion,
+            rate: speakingRate.toFixed(1),
+            smsStatus: null,
+            ttsStatus: errMsg
+          });
+          return;
+        }
+
+        const audio = new Audio("data:audio/mp3;base64," + data.audioBase64);
+        audio.play();
+        log("Playing test voice for " + voice + " with emotion " + emotion);
+
+        addHistoryEntry({
+          title: "Test voice",
+          timestamp: startedAt.toLocaleTimeString(),
+          meta: `Hello world test · Voice ${voice}`,
+          voice,
+          emotion,
+          rate: speakingRate.toFixed(1),
+          smsStatus: null,
+          ttsStatus: "ok"
+        });
+      } catch (err) {
+        const errMsg = "Fetch error: " + err;
+        log(errMsg);
+        addHistoryEntry({
+          title: "Test voice",
+          timestamp: startedAt.toLocaleTimeString(),
+          meta: `Hello world test · Voice ${voice}`,
+          voice,
+          emotion,
+          rate: speakingRate.toFixed(1),
+          smsStatus: null,
+          ttsStatus: errMsg
+        });
+      }
+    });
+
+    // 2. Send reminder (SMS + pillbox voice)
+    document.getElementById("sendReminderBtn").addEventListener("click", async () => {
+      const eventType = document.getElementById("eventType").value;
+      const patientName = document.getElementById("patientName").value || "Jinal";
+      const timeVal = document.getElementById("time").value || "8:00 pm";
+      const meds = document.getElementById("meds").value || "your medications";
+      const phone = document.getElementById("phone").value;
+      const voice = document.getElementById("voice").value;
+      const emotion = document.getElementById("emotion").value;
+      const notes = document.getElementById("promptNotes").value;
+      const speakingRate = parseFloat(document.getElementById("speakingRate").value) || 1.0;
+
+      if (!phone) {
+        log("Please enter a phone number first.");
+        return;
+      }
+
+      const prompt = buildPrompt(emotion, notes);
+
+      const body = {
+        event: eventType,
+        to: phone,
+        payload: {
+          patientName: patientName,
+          time: timeVal,
+          meds: meds
+        },
+        voice: voice,
+        emotion: emotion,
+        prompt: prompt,
+        speakingRate: speakingRate
+      };
+
+      log("Calling /send-event with " + JSON.stringify(body, null, 2));
+      const startedAt = new Date();
+
+      try {
+        const resp = await fetch("http://localhost:8090/send-event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+
+        const text = await resp.text();
+        if (!resp.ok) {
+          const errMsg = "send-event error: " + resp.status + " " + text;
+          log(errMsg);
+
+          addHistoryEntry({
+            title: "Sample reminder",
+            timestamp: startedAt.toLocaleTimeString(),
+            meta: `${eventType} for ${patientName} at ${timeVal}`,
+            voice,
+            emotion,
+            rate: speakingRate.toFixed(1),
+            smsStatus: errMsg,
+            ttsStatus: "not triggered"
+          });
+          return;
+        }
+
+        log("Reminder triggered. Server said: " + text);
+
+        addHistoryEntry({
+          title: "Sample reminder",
+          timestamp: startedAt.toLocaleTimeString(),
+          meta: `${eventType} for ${patientName} at ${timeVal}`,
+          voice,
+          emotion,
+          rate: speakingRate.toFixed(1),
+          smsStatus: "ok",
+          ttsStatus: "triggered"
+        });
+      } catch (err) {
+        const errMsg = "Fetch error: " + err;
+        log(errMsg);
+        addHistoryEntry({
+          title: "Sample reminder",
+          timestamp: startedAt.toLocaleTimeString(),
+          meta: `${eventType} for ${patientName} at ${timeVal}`,
+          voice,
+          emotion,
+          rate: speakingRate.toFixed(1),
+          smsStatus: errMsg,
+          ttsStatus: "not triggered"
+        });
+      }
+    });
+
+    // Initial preview on load
+    updatePreview();
+    renderHistory();
+  </script>
+</body>
+
+</html>

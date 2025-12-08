@@ -100,66 +100,52 @@ func (s *Server) handleSendSMS(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSendEvent(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
+    if r.Method != http.MethodPost {
+        w.WriteHeader(http.StatusMethodNotAllowed)
+        return
+    }
 
-	var body sendEventRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte("invalid json"))
-		return
-	}
+    var body sendEventRequest
+    if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+        w.WriteHeader(http.StatusBadRequest)
+        _, _ = w.Write([]byte("invalid json"))
+        return
+    }
 
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
+    ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+    defer cancel()
 
-	ev := notifications.EventPayload{
-		Event:        notifications.EventType(body.Event),
-		To:           body.To,
-		Payload:      body.Payload,
-		Voice:        body.Voice,
-		Emotion:      body.Emotion,
-		SpeakingRate: body.SpeakingRate,
-		Prompt:       body.Prompt,
-	}
+    ev := notifications.EventPayload{
+        Event:        notifications.EventType(body.Event),
+        To:           body.To,
+        Payload:      body.Payload,
+        Voice:        body.Voice,
+        Emotion:      body.Emotion,
+        SpeakingRate: body.SpeakingRate,
+        Prompt:       body.Prompt,
+    }
 
-	log.Printf("handleSendEvent voice=%q emotion=%q rate=%v prompt=%q",
-    body.Voice, body.Emotion, body.SpeakingRate, body.Prompt)
-	
-	text, err := notifications.RenderBody(ev)
-	if err != nil {
-		log.Printf("RenderBody error: %v", err)
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte("bad event or payload"))
-		return
-	}
+    log.Printf("handleSendEvent voice=%q emotion=%q rate=%v prompt=%q",
+        body.Voice, body.Emotion, body.SpeakingRate, body.Prompt)
 
-	// SMS still uses text
-	req := notifications.Request{
-		To:      ev.To,
-		Body:    text,
-		Channel: notifications.ChannelSMS,
-	}
+    text, err := notifications.RenderBody(ev)
+    if err != nil {
+        log.Printf("RenderBody error: %v", err)
+        w.WriteHeader(http.StatusBadRequest)
+        _, _ = w.Write([]byte("bad event or payload"))
+        return
+    }
 
-	if err := s.notifier.Send(ctx, req); err != nil {
-		log.Printf("Send event SMS error: %v", err)
-		w.WriteHeader(http.StatusBadGateway)
-		_, _ = w.Write([]byte("failed to send"))
-		return
-	}
+    // Single path: send SMS + TTS inside this helper
+    if err := s.sendSMSAndSpeak(ctx, ev, text); err != nil {
+        log.Printf("sendSMSAndSpeak error: %v", err)
+        w.WriteHeader(http.StatusBadGateway)
+        _, _ = w.Write([]byte("failed to send or speak"))
+        return
+    }
 
-	// And now TTS uses the caregiver chosen voice
-	if err := s.sendSMSAndSpeak(ctx, ev, text); err != nil {
-		log.Printf("sendSMSAndSpeak error: %v", err)
-		w.WriteHeader(http.StatusBadGateway)
-		_, _ = w.Write([]byte("failed to send or speak"))
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"ok":true}`))
+    w.WriteHeader(http.StatusOK)
+    _, _ = w.Write([]byte(`{"ok":true}`))
 }
 
 func (s *Server) handleTwilioStatus(w http.ResponseWriter, r *http.Request) {
