@@ -21,17 +21,6 @@ It provides a simple HTTP API plus a local testing UI for caregivers to preview 
   - Single `/send-event` endpoint handles SMS + TTS simultaneously
   - Supports multiple event types: dose due, refill, test
 
-
-## Repository Structure
-DoseDock-Messaging-Engine/
-├── cmd/
-│   └── server/            # Main HTTP server entrypoint
-├── internal/
-│   ├── httpapi/           # API handlers, routing, Twilio + TTS orchestration
-│   ├── notifications/     # Twilio SMS + phone verification logic
-│   └── tts/               # Google TTS client (Chirp-3 / Charon voice)
-├── web/                   # Caregiver UI (HTML/CSS/JS)
-└── README.md
 ## Environment Variables
 
 Create a `.env.local` file:
