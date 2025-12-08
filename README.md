@@ -1,4 +1,4 @@
-# DoseDock Notify
+# DoseDock Messaging Engine
 
 DoseDock Notify is a lightweight messaging and voice engine that powers SMS reminders and spoken pillbox announcements for the DoseDock medication-adherence system.  
 It provides a simple HTTP API plus a local testing UI for caregivers to preview voices, verify patient phone numbers, and send test reminders.
