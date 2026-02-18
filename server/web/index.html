@@ -2,6 +2,7 @@
 <html lang="en">
 
 <head>
+  <script src="https://cdn.jsdelivr.net/npm/howler@2.2.4/dist/howler.min.js"></script>
   <meta charset="UTF-8" />
   <title>DoseDock Voice Lab</title>
   <style>
@@ -537,6 +538,47 @@
     const advancedPreviewEl = document.getElementById("advancedPreview");
     const showAdvancedCheckbox = document.getElementById("showAdvanced");
 
+    function base64ToBlobUrl(base64, mimeType = "audio/mpeg") {
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: mimeType });
+      return URL.createObjectURL(blob);
+    }
+
+    let currentHowl = null;
+    let currentBlobUrl = null;
+
+    function playMp3Base64WithHowler(audioBase64) {
+      // cleanup previous playback
+      if (currentHowl) {
+        try { currentHowl.unload(); } catch {}
+        currentHowl = null;
+      }
+      if (currentBlobUrl) {
+        try { URL.revokeObjectURL(currentBlobUrl); } catch {}
+        currentBlobUrl = null;
+      }
+
+      const url = base64ToBlobUrl(audioBase64);
+      currentBlobUrl = url;
+
+      currentHowl = new Howl({
+        src: [url],
+        format: ["mp3"],
+        html5: true, // helps with larger audio and streaming behavior
+        onloaderror: (_id, err) => log("Audio load error: " + err),
+        onplayerror: (_id, err) => {
+          log("Audio play error: " + err);
+          // sometimes browsers require a user gesture; this can help
+          currentHowl.once("unlock", () => currentHowl.play());
+        }
+      });
+
+      currentHowl.play();
+    }
+
+
     const history = [];
 
     function log(msg) {
@@ -720,7 +762,7 @@
       const startedAt = new Date();
 
       try {
-        const resp = await fetch("http://localhost:8090/tts/speak", {
+        const resp = await fetch("/tts/speak", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body)
@@ -763,8 +805,7 @@
           return;
         }
 
-        const audio = new Audio("data:audio/mp3;base64," + data.audioBase64);
-        audio.play();
+        playMp3Base64WithHowler(data.audioBase64);
         log("Playing test voice for " + voice + " with emotion " + emotion);
 
         addHistoryEntry({
@@ -815,30 +856,32 @@
       const body = {
         event: eventType,
         to: phone,
-        payload: {
-          patientName: patientName,
-          time: timeVal,
-          meds: meds
-        },
-        voice: voice,
-        emotion: emotion,
-        prompt: prompt,
-        speakingRate: speakingRate
+        payload: { patientName, time: timeVal, meds },
+        voice,
+        emotion,
+        prompt,
+        speakingRate
       };
 
       log("Calling /send-event with " + JSON.stringify(body, null, 2));
       const startedAt = new Date();
 
       try {
-        const resp = await fetch("http://localhost:8090/send-event", {
+        const resp = await fetch("/send-event", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body)
         });
 
-        const text = await resp.text();
+        const data = await resp.json(); // { ok, text, audioBase64 } or { ok:false, error }
+
+        // play audio if provided (even on ok responses only)
+        if (resp.ok && data.audioBase64) {
+          playMp3Base64WithHowler(data.audioBase64);
+        }
+
         if (!resp.ok) {
-          const errMsg = "send-event error: " + resp.status + " " + text;
+          const errMsg = "send-event error: " + resp.status + " " + (data.error || JSON.stringify(data));
           log(errMsg);
 
           addHistoryEntry({
@@ -854,7 +897,7 @@
           return;
         }
 
-        log("Reminder triggered. Server said: " + text);
+        log("Reminder triggered. Server said: " + (data.text || "(no text returned)"));
 
         addHistoryEntry({
           title: "Sample reminder",
@@ -864,11 +907,12 @@
           emotion,
           rate: speakingRate.toFixed(1),
           smsStatus: "ok",
-          ttsStatus: "triggered"
+          ttsStatus: data.audioBase64 ? "triggered" : "not triggered"
         });
       } catch (err) {
         const errMsg = "Fetch error: " + err;
         log(errMsg);
+
         addHistoryEntry({
           title: "Sample reminder",
           timestamp: startedAt.toLocaleTimeString(),

@@ -24,7 +24,7 @@ app.post("/send-sms", async (req, res) => {
     const msg = body.body ?? "";
 
     const nreq: NotificationRequest = { to, body: msg, channel: "SMS" };
-    await notifier.send(nreq);
+    await notifier.sendSms(nreq);
 
     res.status(200).json({ ok: true });
   } catch (e) {
@@ -37,11 +37,19 @@ app.post("/send-event", async (req, res) => {
     const ev = req.body as EventPayload;
 
     const text = renderBody(ev);
-    const nreq: NotificationRequest = { to: ev.to, body: text, channel: "SMS" };
 
-    await notifier.send(nreq);
+    // send SMS
+    await notifier.sendSms({ to: ev.to, body: text });
 
-    res.status(200).json({ ok: true, text });
+    // synthesize for immediate playback
+    const ttsResp = await ttsClient.synthesize({
+      text,
+      voice: ev.voice ?? "Charon",
+      emotion: ev.emotion ?? "Calm",
+      speakingRate: ev.speakingRate ?? 1.0,
+    });
+
+    res.status(200).json({ ok: true, text, audioBase64: ttsResp.audioBase64 });
   } catch (e) {
     res.status(400).json({ ok: false, error: String(e) });
   }
@@ -57,10 +65,11 @@ app.post("/tts/speak", async (req, res) => {
   }
 });
 
-// Serve your static UI later (Phase 3)
-// app.use("/ui", express.static(path.join(process.cwd(), "web")));
+// Serve old HTML UI
+app.use("/ui", express.static(path.join(process.cwd(), "web")));
 
 const port = Number(process.env.PORT ?? 8090);
 app.listen(port, () => {
   console.log(`server listening on http://localhost:${port}`);
+  console.log(`ui available at http://localhost:${port}/ui/`);
 });
