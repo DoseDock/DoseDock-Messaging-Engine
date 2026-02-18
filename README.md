@@ -23,7 +23,7 @@ It provides a simple HTTP API plus a local testing UI for caregivers to preview 
 
 ## Environment Variables
 
-Create a `.env.local` file:
+Create a `.env` file:
 ```
 TWILIO_ACCOUNT_SID=ACxxxx
 TWILIO_AUTH_TOKEN=xxxx
@@ -51,12 +51,11 @@ Caregiver UI:
 http://localhost:8090/ui/
 ```
 ## API Overview
-```
-POST /send-event
+
+To send a POST /send-event
 Trigger an SMS + TTS reminder.
 
-json
-Copy code
+```
 {
   "event": "DOSE_DUE",
   "to": "+15551230000",
