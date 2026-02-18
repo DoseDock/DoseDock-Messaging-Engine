@@ -45,7 +45,7 @@ app.post("/send-event", async (req, res) => {
     const ttsResp = await ttsClient.synthesize({
       text,
       voice: ev.voice ?? "Charon",
-      emotion: ev.emotion ?? "Calm",
+      emotion: ev.emotion ?? "calm",
       speakingRate: ev.speakingRate ?? 1.0,
     });
 
