@@ -52,8 +52,7 @@ http://localhost:8090/ui/
 ```
 ## API Overview
 
-To send a POST /send-event
-Trigger an SMS + TTS reminder.
+To send a `POST /send-event` and tTrigger an SMS + TTS reminder.
 
 ```
 {
